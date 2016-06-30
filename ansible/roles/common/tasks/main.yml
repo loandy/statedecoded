@@ -1,0 +1,73 @@
+- name: Install dependencies
+  apt: name={{ item }} state=latest
+  with_items:
+    - apt-transport-https
+    - apache2
+    - libapache2-mod-php5
+    - mysql-server
+    - mysql-client
+    - postgresql-9.4
+    - php5-mysql
+    - php5-pgsql
+    - php5-curl
+    - php5-tidy
+    - zip
+    - libxml2-utils
+
+- name: Ensure Apache mods are enabled
+  command: a2enmod env rewrite
+
+- name: Copy Apache site configuration
+  copy:
+    src: 001-statedecoded.conf
+    dest: /etc/apache2/sites-available/001-statedecoded.conf
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Enable State Decoded Apache site
+  file:
+    src: /etc/apache2/sites-available/001-statedecoded.conf
+    dest: /etc/apache2/sites-enabled/001-statedecoded.conf
+    state: link
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Disable default Apache site
+  file:
+    path: /etc/apache2/sites-enabled/000-default.conf
+    state: absent
+
+- name: Download Solr tarball
+  get_url:
+    url: http://apache.spinellicreations.com/lucene/solr/6.1.0/solr-6.1.0.tgz
+    dest: /home/vagrant/solr-6.1.0.tgz
+
+- name: Unarchive Solr
+  unarchive:
+    copy: no
+    src: /home/vagrant/solr-6.1.0.tgz
+    dest: /opt/
+
+- name: Change ownership of Vagrant working directory
+  file:
+    path: /vagrant/
+    owner: www-data
+    group: www-data
+    recurse: yes
+
+- name: Copy PHP site configuration
+  copy:
+    src: config.inc.php
+    dest: /vagrant/includes/config.inc.php
+    owner: www-data
+    group: www-data
+    mode: 0644
+
+- name: Create MySQL database
+  command: mysql -e "CREATE DATABASE IF NOT EXISTS statedecoded;"
+
+- name: Grant permissions on MySQL database
+  command: mysql -e "GRANT ALL PRIVILEGES ON statedecoded.* to 'statedecoded'@'localhost'; FLUSH PRIVILEGES;"
+  notify: Restart apache2
